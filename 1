@@ -194,7 +194,6 @@ class DataWorker(object):
         self.model.zero_grad()
         output = self.model(data)
         loss = F.cross_entropy(output, target)
-        print(loss)
         loss.backward()
         return self.model.get_gradients(self.model)
 
