@@ -6,48 +6,63 @@ import torchvision
 from torchvision import datasets, transforms
 from filelock import FileLock
 import numpy as np
-import pandas as pd
+import modin.pandas as pd
 import ray
+import pandas
 from PIL import Image
 from torch.utils.data import DataLoader, random_split
 from torch.utils.data import Dataset
 
-num_workers = 15
+num_workers = 3
+ray.init(address='auto',runtime_env={'env_vars': {'__MODIN_AUTOIMPORT_PANDAS__': '1'}})
 
-paths=[]
-labels=[]
-for dirname, _, filenames in os.walk('./content/imagenet-mini/train'):
-    for filename in filenames:
-        if filename[-4:]=='JPEG':
-            paths+=[(os.path.join(dirname, filename))]
-            label=dirname.split('/')[-1]
-            labels+=[label]
+#paths=[]
+#labels=[]
+#for dirname, _, filenames in os.walk('./ILSVRC/Data/CLS-LOC/train'):
+#    for filename in filenames:
+#        if filename[-4:]=='JPEG':
+#            paths+=[(os.path.join(dirname, filename))]
+#            label=dirname.split('/')[-1]
+#            labels+=[label]
 
-tpaths=[]
-tlabels=[]
-for dirname, _, filenames in os.walk('./content/imagenet-mini/val'):
-    for filename in filenames:
-        if filename[-4:]=='JPEG':
-            tpaths+=[(os.path.join(dirname, filename))]
-            label=dirname.split('/')[-1]
-            tlabels+=[label]
-
-
-class_names=sorted(set(labels))
-N=list(range(len(class_names)))
-normal_mapping=dict(zip(class_names, N))
-reverse_mapping=dict(zip(N, class_names))
+#tpaths=[]
+#tlabels=[]
+#for dirname, _, filenames in os.walk('./content/imagenet-mini/val'):
+#    for filename in filenames:
+#        if filename[-4:]=='JPEG':
+#            tpaths+=[(os.path.join(dirname, filename))]
+#            label=dirname.split('/')[-1]
+#            tlabels+=[label]
 
 
-df=pd.DataFrame(columns=['path','label'])
-df['path']=paths
-df['label']=labels
-df['label']=df['label'].map(normal_mapping)
+#class_names=sorted(set(labels))
+#N=list(range(len(class_names)))
+#normal_mapping=dict(zip(class_names, N))
+#reverse_mapping=dict(zip(N, class_names))
 
-tdf=pd.DataFrame(columns=['path','label'])
-tdf['path']=tpaths
-tdf['label']=tlabels
-tdf['label']=tdf['label'].map(normal_mapping)
+
+#df=pd.DataFrame(columns=['path','label'])
+#df['path']=paths
+#df['label']=labels
+#df['label']=df['label'].map(normal_mapping)
+
+df = pd.read_pickle("imagenet.pkl")
+
+#tdf=pd.DataFrame(columns=['path','label'])
+#tdf['path']=tpaths
+#tdf['label']=tlabels
+#tdf['label']=tdf['label'].map(normal_mapping)
+#tdf.to_pickle("test_imagenet.pkl")
+
+
+#df.to_pickle("imagenet.pkl")
+
+tdf = pd.read_pickle("test_imagenet.pkl")
+
+print(df.head())
+print('df saved')
+
+
 
 class CustomDataset(Dataset):
     def __init__(self, dataframe):
@@ -111,14 +126,15 @@ for i in range(num_workers):
     train_ds.append(CustomDataset(train_df[i]))
 
 train_loader = []
+train_loader_ref = []
+
 
 for i in range(num_workers):
-    train_loader.append(DataLoader(train_ds[i],batch_size=64))
+    train_loader_ref.append(ray.put(train_loader.append(DataLoader(train_ds[i],batch_size=2048, shuffle=True))))
 
 test_ds=TestDataset(tdf)
 
-
-test_loader=DataLoader(test_ds,batch_size=64)
+test_loader=DataLoader(test_ds,batch_size=2048)
 
 
 def evaluate(model, test_loader):
@@ -156,9 +172,9 @@ def set_gradients(self, gradients):
 
 @ray.remote(resources={"ps" : 1})
 class ParameterServer(object):
-    def __init__(self, lr, model, momentum):
+    def __init__(self, lr, model, momentum, weight_decay):
         self.model = model
-        self.optimizer = torch.optim.SGD(self.model.parameters(), lr=lr, momentum=momentum)
+        self.optimizer = torch.optim.SGD(self.model.parameters(), lr=lr, momentum=momentum, weight_decay=weight_decay)
 
     def apply_gradients(self, *gradients):
         summed_gradients = [
@@ -199,7 +215,7 @@ class DataWorker(object):
         return self.model.get_gradients(self.model)
 
 
-iterations = 20
+iterations = 200
 model = torchvision.models.efficientnet_b0(weights=None)
 
 model.get_weights = get_weights
@@ -207,11 +223,8 @@ model.set_weights = set_weights
 model.get_gradients = get_gradients
 model.set_gradients = set_gradients
 
-ray.init(address='auto')
-ps = ParameterServer.remote(lr=0.0125, model=model, momentum=0.89)
-workers = [DataWorker.remote(model, train_loader[i]) for i in range(num_workers)]
-
-
+ps = ParameterServer.remote(lr=0.08, model=model, momentum=0.9, weight_decay=1e-5)
+workers = [DataWorker.remote(model, train_loader_ref[i]) for i in range(num_workers)]
 
 print("Running synchronous parameter server training.")
 current_weights = ps.get_weights.remote()
@@ -223,7 +236,7 @@ for i in range(iterations):
     # Evaluate the current model.
     model.set_weights(model, ray.get(current_weights))
     accuracy = evaluate(model, test_loader)
-    print("Iter {}: \taccuracy is {:.1f}".format(i + 1, accuracy))
+    print("Iter {}: \taccuracy is {}".format(i + 1, accuracy))
 
 print("Final accuracy is {:.1f}.".format(accuracy))
 # Clean up Ray resources and processes before the next example.
