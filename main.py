@@ -232,9 +232,11 @@ for i in range(iterations):
     gradients = [worker.compute_gradients.remote(current_weights) for worker in workers]
     # Calculate update after all gradients are available.
     current_weights = ps.apply_gradients.remote(*gradients)
-
+    
     # Evaluate the current model.
     model.set_weights(model, ray.get(current_weights))
+    with open("model.pkl", "wb") as d:
+        pickle.dump(model, f)
     accuracy = evaluate(model, test_loader)
     print("Iter {}: \taccuracy is {}".format(i + 1, accuracy))
 
