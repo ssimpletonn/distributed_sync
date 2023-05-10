@@ -45,7 +45,7 @@ class ParameterServer(object):
         return self.loss_vals
 
 
-@ray.remote
+@ray.remote(resouces={'worker':1})
 class Worker(object):
     def __init__(self):
         self.model = ConvNet()
