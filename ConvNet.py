@@ -18,8 +18,8 @@ def get_data_loader():
                                                       transforms.Compose([transforms.ToTensor()]))
           train_set_list = []
 
-          for i in range(3):
-              train_set_list.append(torch.utils.data.Subset(train_set, range(i*20000, (i + 1)*20000)))
+          for i in range(5):
+              train_set_list.append(torch.utils.data.Subset(train_set, range(i*12000, (i + 1)*12000)))
           test_set = torchvision.datasets.FashionMNIST("./data", download=True, train=False, transform=
                                                       transforms.Compose([transforms.ToTensor()]))
 

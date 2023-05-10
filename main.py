@@ -86,8 +86,8 @@ class Worker(object):
 
 
 if __name__ == '__main__':
-    iterations = 600
-    num_workers = 3
+    iterations = 240
+    num_workers = 5
     lr = 0.001
     accuracy_vals = []
 
@@ -110,18 +110,19 @@ if __name__ == '__main__':
             model.set_weights(ray.get(current_weights))
             accuracy = evaluate(model, test_loader)
             accuracy_vals.append(accuracy)
-            print("Epoch {}: \taccuracy is {:.1f}".format(i / 10 + 1, accuracy))
+            print("Iter {}: \taccuracy is {:.1f}".format(i / 10 + 1, accuracy))
 
     print("Final accuracy is {:.1f}.".format(accuracy))
     # Clean up Ray resources and processes before the next example.
 
-    epochs = range(1, 61)
+    epochs = range(1, 25)
     worker1loss = []
     worker2loss = []
     worker1acc = []
     worker2acc = []
-    workerss = [[], [], []]
-
+    workerss = []
+    for i in range(num_workers):
+        workerss.append([])
     for i in range(num_workers):
         workerss[i].append(
             [ray.get(workers[i].get_accuracy_vals.remote())[::10], ray.get(workers[i].get_loss_vals.remote())[::10]])
@@ -129,33 +130,37 @@ if __name__ == '__main__':
     for i in range(num_workers):
         plt.plot(epochs, workerss[i][0][0])
 
-    plt.xlabel("epochs")
+    plt.xlabel("iter")
     plt.ylabel("accuracy")
     plt.title("Local ccuracy")
 
     plt.legend()
     plt.savefig('localaccuracy.png')
 
+    plt.clf()
     for i in range(num_workers):
         plt.plot(epochs, workerss[i][0][1])
 
-    plt.xlabel("epochs")
+    plt.xlabel("iter")
     plt.ylabel("loss")
     plt.title("Local loss")
 
     plt.legend()
     plt.savefig('localloss.png')
+    plt.clf()
+
 
     plt.plot(epochs, accuracy_vals)
-    plt.xlabel("epochs")
+    plt.xlabel("iter")
     plt.ylabel("accuracy")
     plt.title("Global accuracy")
 
     plt.legend()
     plt.savefig('accuracy.png')
+    plt.clf()
 
     plt.plot(epochs, ray.get(ps.get_loss_vals.remote())[::10])
-    plt.xlabel("epochs")
+    plt.xlabel("iter")
     plt.ylabel("loss")
     plt.title("Global loss")
     plt.legend()
