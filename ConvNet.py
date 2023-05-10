@@ -12,15 +12,26 @@ def get_data_loader():
     # download data, and this may cause overwrites since
     # DataLoader is not threadsafe.
     with FileLock(os.path.expanduser("~/data.lock")):
+        
+          
           train_set = torchvision.datasets.FashionMNIST("./data", download=True, transform=
                                                       transforms.Compose([transforms.ToTensor()]))
+          train_set_list = []
+
+          for i in range(3):
+              train_set_list.append(torch.utils.data.Subset(train_set, range(i*20000, (i + 1)*20000)))
           test_set = torchvision.datasets.FashionMNIST("./data", download=True, train=False, transform=
                                                       transforms.Compose([transforms.ToTensor()]))
+
           train_loader = torch.utils.data.DataLoader(train_set,
                                                     batch_size=100, shuffle=True)
+
           test_loader = torch.utils.data.DataLoader(test_set,
                                                     batch_size=100, shuffle=True)
-    return train_loader, test_loader
+          train_loader_list = []
+          for i in train_set_list:
+              train_loader_list.append(torch.utils.data.DataLoader(i, batch_size=100, shuffle = True))
+    return train_loader_list, test_loader
 
 
 def evaluate(model, test_loader):

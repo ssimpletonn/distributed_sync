@@ -6,18 +6,25 @@ import torchvision
 from torchvision import datasets, transforms
 from filelock import FileLock
 import numpy as np
+import matplotlib.pyplot as plt
 
 import ray
 from ConvNet import ConvNet, evaluate, get_data_loader
 
+train_loader_list, test_loader = get_data_loader()
 
-@ray.remote
+train_set = torchvision.datasets.FashionMNIST("./data", download=True, transform=
+                                                      transforms.Compose([transforms.ToTensor()]))
+train_loader = torch.utils.data.DataLoader(train_set,
+                                                    batch_size=100, shuffle=True)
+
+@ray.remote(resources={'ps': 1})
 class ParameterServer(object):
-    def __init__(self, lr):
+    def __init__(self, lr, train_loader):
         self.model = ConvNet()
         self.optimizer = torch.optim.Adam(self.model.parameters(), lr=lr)
         self.loss_vals = []
-        self.data_iterator = iter(get_data_loader()[0])
+        self.data_iterator = iter(train_loader)
 
 
     def apply_gradients(self, *gradients):
@@ -29,7 +36,7 @@ class ParameterServer(object):
         self.optimizer.step()
         try:
             data, target = next(self.data_iterator)
-        except StopIteration:  # When the epoch ends, start a new epoch.
+        except StopIteration:  
             self.data_iterator = iter(get_data_loader()[0])
             data, target = next(self.data_iterator)
         self.model.zero_grad()
@@ -45,11 +52,12 @@ class ParameterServer(object):
         return self.loss_vals
 
 
-@ray.remote(resouces={'worker':1})
+@ray.remote(resources={'worker':1})
 class Worker(object):
-    def __init__(self):
+    def __init__(self, train_loader):
         self.model = ConvNet()
-        self.data_iterator = iter(get_data_loader()[0])
+        self.train_loader = train_loader
+        self.data_iterator = iter(train_loader)
         self.test_loader = get_data_loader()[1]
         self.loss_vals = []
         self.acc_vals = []
@@ -59,7 +67,7 @@ class Worker(object):
         try:
             data, target = next(self.data_iterator)
         except StopIteration:  # When the epoch ends, start a new epoch.
-            self.data_iterator = iter(get_data_loader()[0])
+            self.data_iterator = iter(self.train_loader)
             data, target = next(self.data_iterator)
         self.model.zero_grad()
         output = self.model(data)
@@ -77,15 +85,15 @@ class Worker(object):
 
 
 
-if __name__ = '__main__':
+if __name__ == '__main__':
     iterations = 600
-    num_workers = 10
+    num_workers = 3
     lr = 0.001
     accuracy_vals = []
 
     ray.init(ignore_reinit_error=True)
-    ps = ParameterServer.remote(lr)
-    workers = [Worker.remote() for i in range(num_workers)]
+    ps = ParameterServer.remote(lr, train_loader)
+    workers = [Worker.remote(train_loader_list[i]) for i in range(num_workers)]
 
     model = ConvNet()
     test_loader = get_data_loader()[1]
@@ -112,7 +120,7 @@ if __name__ = '__main__':
     worker2loss = []
     worker1acc = []
     worker2acc = []
-    workerss = [[], [], [], [], [], [], [], [], [], []]
+    workerss = [[], [], []]
 
     for i in range(num_workers):
         workerss[i].append(
@@ -126,7 +134,7 @@ if __name__ = '__main__':
     plt.title("Local ccuracy")
 
     plt.legend()
-    plt.show()
+    plt.savefig('localaccuracy.png')
 
     for i in range(num_workers):
         plt.plot(epochs, workerss[i][0][1])
@@ -136,7 +144,7 @@ if __name__ = '__main__':
     plt.title("Local loss")
 
     plt.legend()
-    plt.show()
+    plt.savefig('localloss.png')
 
     plt.plot(epochs, accuracy_vals)
     plt.xlabel("epochs")
@@ -144,11 +152,11 @@ if __name__ = '__main__':
     plt.title("Global accuracy")
 
     plt.legend()
-    plt.show()
+    plt.savefig('accuracy.png')
 
     plt.plot(epochs, ray.get(ps.get_loss_vals.remote())[::10])
     plt.xlabel("epochs")
     plt.ylabel("loss")
     plt.title("Global loss")
     plt.legend()
-    plt.show()
+    plt.savefig('globalloss.png')
