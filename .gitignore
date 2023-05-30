@@ -4,3 +4,7 @@
 /venv
 /v
 /data
+/ILSVRC
+.main.py.swo
+.main.py.swp
+./.n*

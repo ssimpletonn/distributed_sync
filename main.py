@@ -45,12 +45,12 @@ else:
 load_model = None
 if(args.model == 'efficientnet'):
     if(args.dataset == 'fashionmnist'):
-        sys.exit('fashionmnist and efficientnet')
+        sys.exit('fashionmnist with efficientnet')
     load_model = loadEfficientNet
     print('EfficientNet')
 elif(args.model == 'lenet'):
     if(args.dataset == 'imagenet'):
-        sys.exit('imagenet and lenet')
+        sys.exit('imagenet with lenet')
     load_model = loadLeNet
     print('LeNet')
 
@@ -65,7 +65,7 @@ class ParameterServer(object):
         for param in self.model.classifier.parameters():
             param.requires_grad = True
 
-        self.optimizer = torch.optim.SGD(self.model.classifier.parameters(), lr=lr, momentum=momentum)
+        self.optimizer = torch.optim.Adam(self.model.classifier.parameters(), lr=lr)#, momentum=momentum)
 
     def apply_gradients(self, *gradients):
         summed_gradients = [
@@ -104,7 +104,8 @@ class DataWorker(object):
         output = self.model(data)
         loss = F.cross_entropy(output, target)
         self.loss_vals.append(loss.item())
-        self.acc_vals.append(evaluate(self.model, test_loader))
+        #acc = evaluate(self.model, test_loader)
+        #self.acc_vals.append(acc)
         print(loss)
         loss.backward()
         return self.model.get_gradients()
@@ -115,13 +116,14 @@ class DataWorker(object):
     def get_accuracy_vals(self):
         return self.acc_vals
 
-model = load_model(classifier=True,)
+model = load_model()
 
 context = ray.init(address='auto')
 
 ps = ParameterServer.remote(lr=config.lr, model=model, momentum=0.9)
 workers = [DataWorker.remote(train_loader[i]) for i in range(num_workers)]
 current_weights = ps.get_weights.remote()
+
 print("Запуск синхронного распределенного обучения с параметрическим сервером.")
 accuracy = 0
 accuracy_vals = []
@@ -150,14 +152,14 @@ ray.shutdown()
 
 plot_accuracy(accuracy_vals, iterations)
 
-accuracy_workers = []
-for i in range(num_workers):
-    accuracy_workers.append([])
+#accuracy_workers = []
+#for i in range(num_workers):
+#    accuracy_workers.append([])
 
-for i in range(num_workers):
-    accuracy_workers[i].append(
-        [ray.get(workers[i].get_accuracy_vals.remote())])
-plot_accuracy_workers(accuracy_workers, iterations, num_workers)
+#for i in range(num_workers):
+#    accuracy_workers[i].append(
+#        [ray.get(workers[i].get_accuracy_vals.remote())])
+#plot_accuracy_workers(accuracy_workers, iterations, num_workers)
 
 loss_workers = []
 for i in range(num_workers):

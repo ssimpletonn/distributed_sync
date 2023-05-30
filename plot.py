@@ -1,9 +1,10 @@
 import matplotlib.pyplot as plt
-
+import numpy as np
 def plot_accuracy(accuracy_vals, iterations):
-    plt.plot(iterations, accuracy_vals)
+    data = np.squeeze(accuracy_vals)
+    plt.plot(data)
     plt.xlabel("Iteration")
-    plt.ylabel("accuracy")
+    plt.ylabel("Accuracy")
     plt.title("Global accuracy")
     plt.legend()
     plt.savefig('accuracy.png')

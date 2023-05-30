@@ -25,14 +25,14 @@ def loadCIFAR10(num_workers):
     with FileLock(os.path.expanduser("~/data.lock")):
         train_transforms = transforms.Compose([
         transforms.ToTensor(),
-        transforms.Resize([224,224], antialias=True),
+        transforms.Resize((224,224), antialias=True),
         transforms.RandomHorizontalFlip(),
         transforms.RandomCrop(32,padding=4,padding_mode="reflect"),
         transforms.Normalize((0.5074,0.4867,0.4411), (0.2011,0.1987,0.2025))
         ])
         test_transforms = transforms.Compose([
             transforms.ToTensor(),
-            transforms.Resize((224, 224)),
+            transforms.Resize((224, 224), antialias=True),
             transforms.Normalize((0.5074,0.4867,0.4411), (0.2011,0.1987,0.2025))
         ])
         
@@ -44,8 +44,8 @@ def loadCIFAR10(num_workers):
         train_loader_list = []
         train_sets = torch.utils.data.random_split(train_data, lengths)
         for i in range(len(train_sets)):
-            train_loader_list.append(DataLoader(train_sets[i], 64, shuffle=True))
-        test_loader = DataLoader(test_data, 64, shuffle=True)
+            train_loader_list.append(DataLoader(train_sets[i], 128, shuffle=True))
+        test_loader = DataLoader(test_data, 128, shuffle=True)
         return train_loader_list, test_loader
 
 def loadImageNet(path, num_workers):
