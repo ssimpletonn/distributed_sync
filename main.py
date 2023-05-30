@@ -147,7 +147,6 @@ else:
         print("Iter {}: \taccuracy is {}".format(i + 1, accuracy))
 
 print("Final accuracy is {}.".format(accuracy))
-ray.shutdown()
 
 
 plot_accuracy(accuracy_vals, iterations)
@@ -167,6 +166,7 @@ for i in range(num_workers):
 
 for i in range(num_workers):
     loss_workers[i].append(
-        [ray.get(workers[i].get_loss_vals.remote())])
+        ray.get(workers[i].get_loss_vals.remote()))
 
 plot_loss_workers(loss_workers, iterations, num_workers)
+ray.shutdown()

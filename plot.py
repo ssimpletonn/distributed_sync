@@ -2,7 +2,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 def plot_accuracy(accuracy_vals, iterations):
     data = np.squeeze(accuracy_vals)
-    plt.plot(data)
+    plt.plot(range(1, iterations + 1), accuracy_vals)
     plt.xlabel("Iteration")
     plt.ylabel("Accuracy")
     plt.title("Global accuracy")
@@ -24,7 +24,7 @@ def plot_accuracy_workers(accuracy_workers, iterations, num_workers):
 
 def plot_loss_workers(loss_workers, iterations, num_workers):
     for i in range(num_workers):
-        plt.plot(iterations, loss_workers[i])
+        plt.plot(range(1,iterations + 1), loss_workers[i])
     plt.xlabel("iter")
     plt.ylabel("loss")
     plt.title("Local loss")
