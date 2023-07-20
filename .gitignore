@@ -1,4 +1,11 @@
 /venv
-__pycache__
+/__pycache__
 /content
 /ILSVRC
+/venv
+/v
+/data
+/ILSVRC
+.main.py.swo
+.main.py.swp
+./.n*
